@@ -1,0 +1,54 @@
+# --- Security & Environment ---
+.env
+.env.*
+!.env.example
+.venv/
+env/
+venv/
+ENV/
+
+# --- Python & Cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Document Processing & OCR ---
+# عشان لو نزلت موديلات الـ OCR محلياً متترفعش
+.easyocr/
+.paddleocr/
+# تخطي ملفات الداتا المؤقتة (PDFs/Excel) اللي هتجرب عليها
+data/raw/
+data/processed/
+*.pdf
+*.xlsx
+*.csv
+!data/.gitkeep
+
+# --- Vector DB & Search ---
+.pinecone/
+
+# --- AI Models & Training (Phase 4) ---
+# لو عملت Fine-tuning للموديل ونزلته عندك
+models/
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+# ملفات الـ LoRA Adapters
+checkpoint-*/
+
+# --- Logs & Monitoring ---
+logs/
+*.log
+.langsmith/
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+
+# --- Docker ---
+.docker/
