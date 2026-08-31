@@ -300,7 +300,7 @@ def extract_financial_fields(raw_text: str) -> dict:
     # Pass 1: regex (invoices only, needs clean text)
     if doc_category != "financial_statement":
         regex_r = _regex_extract(raw_text)
-        if regex_r["total_amount"] > 0 or regex_r["subtotal"] > 0:
+        if regex_r["total_amount"] > 0 and regex_r["subtotal"] > 0:
             print(f"  [Extractor] Regex OK — "
                   f"total={regex_r['total_amount']}, sub={regex_r['subtotal']}")
             regex_r["doc_category"] = doc_category
