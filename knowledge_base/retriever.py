@@ -163,8 +163,29 @@ def retrieve(
     """
     print(f"Retrieving for: '{query[:60]}...' in namespace '{namespace}'")
 
-    # Always do vector search
-    vector_results = _vector_search(query, namespace=namespace, top_k=top_k * 2)
+    # FIX: Wrap vector search so a Pinecone outage degrades to BM25-only
+    # instead of crashing the whole retrieval step.
+    try:
+        vector_results = _vector_search(query, namespace=namespace, top_k=top_k * 2)
+        vector_failed = False
+    except Exception as e:
+        print(f"⚠️  Vector search failed ({e}) — falling back to BM25-only.")
+        vector_results = []
+        vector_failed = True
+
+    # If vector search is down and BM25 isn't available either, we truly
+    # have nothing to return — surface that clearly instead of pretending.
+    if vector_failed and _bm25_index is None:
+        print("❌ Both vector search and BM25 are unavailable — returning no results.")
+        return []
+
+    if vector_failed:
+        # BM25-only fallback mode
+        bm25_results = _bm25_search(query, top_k=top_k * 2)
+        return [
+            RetrievalResult(chunk=chunk, score=round(score, 4), source="bm25_fallback")
+            for chunk, score in bm25_results[:top_k]
+        ]
 
     if not use_hybrid or _bm25_index is None:
         # Vector-only mode
