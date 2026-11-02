@@ -80,10 +80,11 @@ def _call_llm(prompt: str, as_json: bool = False, temperature: float = 0.1) -> s
     """
     client = _get_llm()
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
-        max_tokens=2048,
+        max_tokens=4096,
+        reasoning_effort="medium",
         response_format={"type": "json_object"} if as_json else None,
     )
     return response.choices[0].message.content.strip()

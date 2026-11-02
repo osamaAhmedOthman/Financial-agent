@@ -212,10 +212,11 @@ def llm_extract_fields(raw_text: str, doc_category: str = "invoice") -> dict:
         from groq import Groq
         client = Groq(api_key=groq_key)
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
-            max_tokens=512,
+            max_tokens=8192,
+            reasoning_effort="low",
             response_format={"type": "json_object"},
         )
         result = json.loads(response.choices[0].message.content.strip())
