@@ -14,7 +14,7 @@ rank-bm25==0.2.1
 # API & Web Server
 fastapi==0.110.1
 uvicorn==0.29.0
-groq==0.5.0
+groq==1.7.0
 tavily-python==0.3.3
 
 # Document Processing & OCR
@@ -34,3 +34,4 @@ streamlit>=1.32.0
 fpdf2>=2.7.9
 arabic-reshaper>=3.0.0
 python-bidi>=0.4.2
+httpx==0.28.1
