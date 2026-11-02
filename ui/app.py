@@ -13,6 +13,8 @@ Pages:
 import streamlit as st
 import sys
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Make sure the project root is on the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -119,8 +121,9 @@ with st.sidebar:
 
             if login_btn:
                 # Simple auth — replace with JWT in Phase 6
-                USERS = {"admin": "admin123", "auditor": "audit456"}
-                if username in USERS and USERS[username] == password:
+                expected_user = os.getenv("APP_USERNAME", "")
+                expected_pass = os.getenv("APP_PASSWORD", "")
+                if expected_pass and username == expected_user and password == expected_pass:
                     st.session_state.authenticated = True
                     st.session_state.username = username
                     st.rerun()
