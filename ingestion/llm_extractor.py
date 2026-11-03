@@ -14,6 +14,9 @@ import json
 import re
 from typing import Optional
 from dotenv import load_dotenv
+from langsmith import traceable
+
+from llm_client import groq_chat
 
 load_dotenv()
 
@@ -209,9 +212,7 @@ def llm_extract_fields(raw_text: str, doc_category: str = "invoice") -> dict:
               else _INVOICE_PROMPT).format(raw_text=snippet)
 
     try:
-        from groq import Groq
-        client = Groq(api_key=groq_key)
-        response = client.chat.completions.create(
+        out = groq_chat(
             model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
@@ -219,7 +220,10 @@ def llm_extract_fields(raw_text: str, doc_category: str = "invoice") -> dict:
             reasoning_effort="low",
             response_format={"type": "json_object"},
         )
-        result = json.loads(response.choices[0].message.content.strip())
+        choice = out["choices"][0]
+        if choice["finish_reason"] == "length":
+            print("  [LLM Extractor] WARNING: output truncated (finish_reason=length)")
+        result = json.loads(choice["message"]["content"].strip())
 
         if doc_category == "financial_statement":
             return _map_fs(result)
@@ -285,6 +289,7 @@ def _map_fs(r: dict) -> dict:
 
 # ── Main entry point ──────────────────────────────────────────────────────
 
+@traceable(name="extract_financial_fields")
 def extract_financial_fields(raw_text: str) -> dict:
     """
     Main entry point. Detects document category then runs extraction.
