@@ -15,6 +15,7 @@ import os
 from .extractors import universal_extractor
 from .classifiers import classify_document
 from .llm_extractor import extract_financial_fields
+from .confidence import compute_extraction_confidence
 from .validators import refine_extraction_with_rules
 from .schemas import ExtractedDocument
 
@@ -56,9 +57,10 @@ def process_document_pipeline(file_path: str) -> ExtractedDocument:
     # Step 3: Extract financial fields (the missing step in the old version)
     fields = extract_financial_fields(raw_text)
 
-    has_amounts = fields["total_amount"] > 0 or fields["subtotal"] > 0
-    extraction_confidence = (
-        classification_confidence * 0.5 + (0.85 if has_amounts else 0.0) * 0.5
+    extraction_confidence = compute_extraction_confidence(
+        fields,
+        classification_confidence,
+        fields.get("doc_category", "invoice"),
     )
 
     # Step 4: Build the schema
