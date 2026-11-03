@@ -153,7 +153,7 @@ if recommendations:
     for i, rec in enumerate(recommendations, 1):
         col_check, col_text = st.columns([1, 12])
         with col_check:
-            st.checkbox("", key=f"rec_{i}")
+            st.checkbox("تم", key=f"rec_{i}", label_visibility="collapsed")
         with col_text:
             st.markdown(rec)
 

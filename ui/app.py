@@ -26,6 +26,21 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+@st.cache_resource(show_spinner=False)
+def _warm_up():
+    import threading
+    def _load():
+        try:
+            from knowledge_base.embedder import _get_embedding_model, _get_pinecone_index
+            _get_embedding_model()
+            _get_pinecone_index()
+        except Exception as e:
+            print(f"[warm-up] skipped: {e}")
+    threading.Thread(target=_load, daemon=True).start()
+    return True
+
+_warm_up()
+
 # ── Global CSS ─────────────────────────────────────────────────────────────
 st.markdown("""
 <style>

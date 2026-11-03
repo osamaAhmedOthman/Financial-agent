@@ -14,12 +14,15 @@ Each node is a plain Python function that:
 """
 import json
 import os
+import re
 import uuid
 import operator
 from typing import Literal, Annotated
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
+from langsmith import traceable
 
+from llm_client import groq_chat
 from .schemas import AuditState, AuditReport, Violation
 from .tools import search_legal_knowledge, search_web, needs_web_search
 from .prompts import (QUERY_BUILDER_PROMPT, WEB_CONTEXT_TEMPLATE,
@@ -74,20 +77,23 @@ def _get_llm():
 
 def _call_llm(prompt: str, as_json: bool = False, temperature: float = 0.1) -> str:
     """
-    Single LLM call via Groq API.
-    Uses llama-3.3-70b-versatile — strong enough for financial reasoning.
+    Single traced LLM call via Groq (model set by GROQ_MODEL).
     Temperature 0.1 for deterministic, consistent audit results.
     """
-    client = _get_llm()
-    response = client.chat.completions.create(
+    kwargs = dict(
         model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
         max_tokens=4096,
         reasoning_effort="medium",
-        response_format={"type": "json_object"} if as_json else None,
     )
-    return response.choices[0].message.content.strip()
+    if as_json:
+        kwargs["response_format"] = {"type": "json_object"}
+    out = groq_chat(**kwargs)
+    choice = out["choices"][0]
+    if choice["finish_reason"] == "length":
+        print("  [LLM] WARNING: output truncated (finish_reason=length)")
+    return choice["message"]["content"].strip()
 
 
 # ── Node 1: Query builder ──────────────────────────────────────────────────
@@ -133,6 +139,12 @@ def query_builder_node(state: dict) -> dict:
 
 # ── Node 2: Legal retriever ────────────────────────────────────────────────
 
+@traceable(run_type="retriever", name="legal_search")
+def _search(query: str, top_k: int = 3):
+    """One traced retrieval call, so each query gets its own timed span."""
+    return search_legal_knowledge(query=query, top_k=top_k)
+
+
 def legal_retriever_node(state: dict) -> dict:
     """
     Runs all legal queries against Pinecone and collects the results.
@@ -144,7 +156,7 @@ def legal_retriever_node(state: dict) -> dict:
     all_results = []
 
     for query in queries:
-        results = search_legal_knowledge(query=query, top_k=3)
+        results = _search(query=query, top_k=3)
         for r in results:
             chunk_id = f"{r['law_code']}_{r['article_number']}"
             if chunk_id not in seen_ids:
@@ -203,6 +215,20 @@ def web_search_node(state: dict) -> dict:
 
 
 # ── Node 4: Auditor ────────────────────────────────────────────────────────
+
+ALLOWED_VAT_RATES = {0.0, 5.0, 14.0}
+
+
+def _stated_vat_rates(text: str) -> set:
+    """Percentages the document explicitly states next to VAT / tax wording."""
+    text = (text or "").translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+    return {
+        float(m.group(1))
+        for m in re.finditer(
+            r"(?:vat|tax|ضريبة)[^\d\n%]{0,25}(\d{1,2}(?:\.\d+)?)\s*%",
+            text, re.IGNORECASE)
+    }
+
 
 def auditor_node(state: dict) -> dict:
     """Core reasoning node — selects prompt based on document category."""
@@ -301,6 +327,24 @@ def auditor_node(state: dict) -> dict:
             "legal_summary": "فشل التحليل التلقائي",
             "laws_consulted": [],
         }
+
+    # Deterministic check: a VAT rate stated on the invoice must be a legal rate.
+    # Done in code so it does not depend on what the model decides to report.
+    if doc_category != "financial_statement":
+        bad_rates = sorted(r for r in _stated_vat_rates(state.get("raw_text", ""))
+                           if r not in ALLOWED_VAT_RATES)
+        if bad_rates:
+            result["violations"] = list(result.get("violations") or []) + [{
+                "severity": "critical",
+                "field": "vat_rate",
+                "found_value": f"{bad_rates[0]:g}%",
+                "expected_value": "14% (general), 5% (reduced) or 0% (exempt)",
+                "explanation": f"الفاتورة تذكر معدل ضريبة {bad_rates[0]:g}% وهو ليس من المعدلات المنصوص عليها في قانون القيمة المضافة",
+                "legal_reference": "المادة 6 من قانون القيمة المضافة رقم 67 لسنة 2016",
+                "law_code": "VAT_67_2016",
+            }]
+            result["compliance_score"] = max(
+                0.0, float(result.get("compliance_score", 100)) - 15)
 
     print(f"  [Node 4] Score: {result.get('compliance_score', 0):.0f}/100 | "
           f"Violations: {len(result.get('violations', []))}")
