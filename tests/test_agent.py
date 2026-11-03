@@ -118,6 +118,12 @@ class TestAgentSchemas:
 
 class TestAgentTools:
 
+    def test_stated_vat_rates(self):
+        from agent.graph import _stated_vat_rates
+        assert _stated_vat_rates("VAT (12%) 1,200.00") == {12.0}
+        assert _stated_vat_rates("VAT (14%) 1,400.00") == {14.0}
+        assert _stated_vat_rates("Tax Registration Number: 123-456-789") == set()
+
     def test_needs_web_search_usd_currency(self):
         from agent.tools import needs_web_search
         assert needs_web_search("invoice", "USD", "some text") is True
